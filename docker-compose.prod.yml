@@ -3,7 +3,7 @@
 
 services:
   web:
-    image: ${CI_REGISTRY_IMAGE:-registry.ftb.dk/pumait/lldpviz}:${IMAGE_TAG:-latest}
+    image: ${CI_REGISTRY_IMAGE:-registry.ftb.dk/ftb/lldpviz}:${IMAGE_TAG:-latest}
     build: !reset null
     ports: !reset []
     networks:
