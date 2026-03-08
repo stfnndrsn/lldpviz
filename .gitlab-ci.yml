@@ -1,0 +1,66 @@
+stages:
+  - build
+  - deploy
+
+# ---------------------------------------------------------------------------
+# Build stage — Docker image → GitLab Container Registry
+# ---------------------------------------------------------------------------
+
+build-image:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    entrypoint: [""]
+  before_script:
+    - mkdir -p /kaniko/.docker
+    - >
+      echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf '%s:%s'
+      "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}"
+      > /kaniko/.docker/config.json
+  script:
+    - >
+      /kaniko/executor
+      --context "${CI_PROJECT_DIR}"
+      --dockerfile "${CI_PROJECT_DIR}/Dockerfile"
+      --destination "${CI_REGISTRY_IMAGE}:${CI_COMMIT_REF_SLUG}"
+      --destination "${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}"
+      --cache=true
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "main"
+
+# ---------------------------------------------------------------------------
+# Deploy stage — pull image on server via SSH, restart services
+# ---------------------------------------------------------------------------
+# Required CI/CD variables (Settings → CI/CD → Variables):
+#   DEPLOY_SSH_KEY          – base64-encoded private key, protected + masked
+#   DEPLOY_SSH_KNOWN_HOSTS  – output of: ssh-keyscan <server-ip>
+#   DEPLOY_HOST             – server IP or hostname
+
+.deploy_base:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client
+    - eval $(ssh-agent -s)
+    - echo "$DEPLOY_SSH_KEY" | base64 -d > /tmp/deploy_key
+    - chmod 400 /tmp/deploy_key
+    - ssh-add /tmp/deploy_key
+    - rm -f /tmp/deploy_key
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - echo "$DEPLOY_SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+
+deploy-production:
+  extends: .deploy_base
+  script:
+    - ssh deploy@$DEPLOY_HOST "mkdir -p /opt/apps/lldpviz"
+    - scp docker-compose.yml docker-compose.prod.yml .env deploy@$DEPLOY_HOST:/opt/apps/lldpviz/
+    - ssh deploy@$DEPLOY_HOST "docker login -u gitlab-ci-token -p '${CI_JOB_TOKEN}' ${CI_REGISTRY}"
+    - ssh deploy@$DEPLOY_HOST "cd /opt/apps/lldpviz && docker compose -f docker-compose.yml -f docker-compose.prod.yml pull web"
+    - ssh deploy@$DEPLOY_HOST "cd /opt/apps/lldpviz && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans"
+    - ssh deploy@$DEPLOY_HOST "docker image prune -f"
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "main"
+  environment:
+    name: production

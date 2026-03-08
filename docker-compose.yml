@@ -1,0 +1,13 @@
+# Base Compose file.
+# Development: docker compose up --build
+# Production:  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - ../data:/data
+    environment:
+      LLDPVIZ_DB: /data/lldpviz.db

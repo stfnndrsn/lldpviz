@@ -1,0 +1,11 @@
+__pycache__
+*.pyc
+*.db
+.git
+.gitignore
+.cursor
+agent-transcripts
+.env*
+.gitlab-ci.yml
+docker-compose*.yml
+*.md

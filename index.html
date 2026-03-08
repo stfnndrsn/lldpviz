@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLDP Network Topology Visualizer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-title-row">
+      <div>
+        <h1>LLDP<span class="accent">viz</span></h1>
+        <p class="subtitle">Network Topology Visualizer</p>
+      </div>
+      <div class="header-buttons">
+        <button id="btn-about" class="btn-icon-round" title="About LLDPviz">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        </button>
+        <button id="btn-help" class="btn-icon-round" title="Help &amp; Documentation">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <section class="sidebar-section">
+    <h2>Site</h2>
+    <div class="site-controls">
+      <select id="site-select">
+        <option value="">-- Select site --</option>
+      </select>
+      <button id="btn-delete-site" class="btn btn-danger btn-icon" disabled title="Delete site">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+      </button>
+    </div>
+    <div class="create-site-row">
+      <input type="text" id="new-site-name" placeholder="New site name..." />
+      <button id="btn-create-site" class="btn btn-primary">Create</button>
+    </div>
+    <div class="import-export-row">
+      <button id="btn-export-site" class="btn btn-ghost btn-sm" disabled title="Export current site as JSON">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export
+      </button>
+      <button id="btn-import-site" class="btn btn-ghost btn-sm" title="Import site from JSON file">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Import
+      </button>
+      <button id="btn-share-site" class="btn btn-ghost btn-sm" disabled title="Share site via link">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        Share
+      </button>
+      <input type="file" id="import-file-input" accept=".json" style="display:none" />
+    </div>
+    <div id="share-controls" class="share-controls" style="display:none">
+      <div class="share-info">
+        <span class="share-badge">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+          Shared
+        </span>
+        <select id="revision-select" class="revision-select" title="Select revision"></select>
+      </div>
+      <div class="share-actions">
+        <button id="btn-save-revision" class="btn btn-primary btn-sm">Save</button>
+        <button id="btn-copy-share-link" class="btn btn-ghost btn-sm" title="Copy share link">Link</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="sidebar-section" id="lldp-form" style="display:none">
+    <div class="section-header-row">
+      <h2>Add LLDP Data</h2>
+      <button id="btn-traverse" class="btn btn-accent btn-sm" title="Guided network discovery">Traverse</button>
+    </div>
+    <label for="source-identity">Source Device Identity</label>
+    <input type="text" id="source-identity" placeholder="e.g. GC-CCR2004 (auto-detected)" />
+    <div class="optional-fields">
+      <div>
+        <label for="source-board">Board (optional)</label>
+        <input type="text" id="source-board" placeholder="e.g. CCR2004-16G-2S+" />
+      </div>
+      <div>
+        <label for="source-mac">MAC (optional)</label>
+        <input type="text" id="source-mac" placeholder="e.g. 48:A9:8A:AD:41:DD" />
+      </div>
+    </div>
+    <label for="lldp-input">LLDP Neighbor Output</label>
+    <textarea id="lldp-input" rows="8" placeholder="Paste output of:&#10;/ip/neighbor/print detail where discovered-by~&quot;lldp&quot;"></textarea>
+    <div class="form-actions">
+      <button id="btn-add-lldp" class="btn btn-primary">Add Neighbors</button>
+      <button id="btn-clear-topology" class="btn btn-ghost">Clear Topology</button>
+    </div>
+    <div id="status-msg" class="status-msg" style="display:none"></div>
+  </section>
+
+  <section class="sidebar-section traverse-section" id="traverse-panel" style="display:none">
+    <div class="traverse-header">
+      <h2>Network Traverse</h2>
+      <button id="btn-end-traverse" class="btn btn-ghost btn-sm">Exit</button>
+    </div>
+
+    <div class="traverse-progress">
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" id="traverse-progress-fill"></div>
+      </div>
+      <div class="progress-stats" id="traverse-stats">Paste LLDP data to start discovering</div>
+    </div>
+
+    <div class="traverse-step">
+      <label for="traverse-identity">Current Node</label>
+      <input type="text" id="traverse-identity" placeholder="Auto-detected from paste..." />
+
+      <div class="traverse-extra-checks">
+        <span class="extra-checks-label">Also collect:</span>
+        <label class="extra-check"><input type="checkbox" id="chk-collect-iface" /><span>Interfaces</span></label>
+        <label class="extra-check"><input type="checkbox" id="chk-collect-ip" /><span>IP Addresses</span></label>
+        <label class="extra-check"><input type="checkbox" id="chk-collect-vlan" /><span>VLANs</span></label>
+      </div>
+
+      <div class="traverse-cmd-hint">
+        <div class="traverse-cmd-copy">
+          <code id="traverse-combined-cmd">/ip/neighbor/print detail where discovered-by~"lldp"</code>
+          <button class="btn-copy" id="btn-copy-traverse-cmd" title="Copy command">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <label for="traverse-lldp" style="margin-top:6px">Output</label>
+      <textarea id="traverse-lldp" rows="8" placeholder="Paste the full output here&#10;&#10;Ctrl+Enter to submit"></textarea>
+      <button id="btn-traverse-submit" class="btn btn-primary" style="width:100%;margin-top:4px">Submit &amp; Discover</button>
+      <div id="traverse-status" class="status-msg" style="display:none"></div>
+    </div>
+
+    <div class="traverse-queue">
+      <div class="traverse-queue-header">
+        <span class="traverse-queue-title">Pending Neighbors</span>
+        <span class="traverse-queue-count" id="traverse-queue-count">0</span>
+      </div>
+      <div id="traverse-neighbor-list" class="traverse-neighbor-list">
+        <div class="empty-state">Paste LLDP data to discover neighbors</div>
+      </div>
+    </div>
+
+    <div class="traverse-legend">
+      <span class="legend-item"><span class="legend-dot traverse-dot-visited"></span> Visited</span>
+      <span class="legend-item"><span class="legend-dot traverse-dot-pending"></span> Pending</span>
+      <span class="legend-item"><span class="legend-dot traverse-dot-dead"></span> Dead End</span>
+    </div>
+  </section>
+
+  <section class="sidebar-section" id="devices-section">
+    <h2>Devices</h2>
+    <div id="device-list" class="device-list">
+      <div class="empty-state">No site selected</div>
+    </div>
+  </section>
+
+  <div class="sidebar-footer">
+    <div class="legend">
+      <span class="legend-item"><span class="legend-dot" style="background:#e67e22"></span> Router+Bridge</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#e74c3c"></span> Router</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#3498db"></span> Bridge/Switch</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#6c7a89"></span> Other</span>
+    </div>
+  </div>
+</aside>
+
+<main class="main-area">
+  <div id="view-toolbar" class="view-toolbar" style="display:none">
+    <div class="view-modes">
+      <button class="view-mode-btn active" data-mode="network" title="Force-directed network layout">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="6" r="3"/><circle cx="19" cy="6" r="3"/><circle cx="12" cy="19" r="3"/><line x1="7.5" y1="7.5" x2="10" y2="17"/><line x1="16.5" y1="7.5" x2="14" y2="17"/><line x1="8" y1="6" x2="16" y2="6"/></svg>
+        Network
+      </button>
+      <button class="view-mode-btn" data-mode="tree" title="Hierarchical top-down tree from a root node">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="4" rx="1"/><rect x="2" y="10" width="6" height="4" rx="1"/><rect x="16" y="10" width="6" height="4" rx="1"/><rect x="2" y="18" width="6" height="4" rx="1"/><rect x="9" y="18" width="6" height="4" rx="1"/><rect x="16" y="18" width="6" height="4" rx="1"/><line x1="12" y1="6" x2="5" y2="10"/><line x1="12" y1="6" x2="19" y2="10"/><line x1="5" y1="14" x2="5" y2="18"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="19" y1="14" x2="19" y2="18"/></svg>
+        Tree
+      </button>
+      <button class="view-mode-btn" data-mode="radial" title="Radial layout centered on a root node">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="3" r="2"/><circle cx="20" cy="8" r="2"/><circle cx="20" cy="16" r="2"/><circle cx="12" cy="21" r="2"/><circle cx="4" cy="16" r="2"/><circle cx="4" cy="8" r="2"/><line x1="12" y1="9" x2="12" y2="5"/><line x1="14.5" y1="10" x2="18.5" y2="8"/><line x1="14.5" y1="14" x2="18.5" y2="16"/><line x1="12" y1="15" x2="12" y2="19"/><line x1="9.5" y1="14" x2="5.5" y2="16"/><line x1="9.5" y1="10" x2="5.5" y2="8"/></svg>
+        Radial
+      </button>
+      <button class="view-mode-btn" data-mode="text" title="ASCII/Markdown text tree">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></svg>
+        Text
+      </button>
+      <button class="view-mode-btn" data-mode="table" title="Sortable device table">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+        Table
+      </button>
+      <button class="view-mode-btn" data-mode="matrix" title="Connection matrix grid">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Matrix
+      </button>
+      <button class="view-mode-btn" data-mode="portmap" title="Switch port faceplate view">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><rect x="5" y="9" width="3" height="3" rx="0.5"/><rect x="10" y="9" width="3" height="3" rx="0.5"/><rect x="15" y="9" width="3" height="3" rx="0.5"/></svg>
+        Ports
+      </button>
+    </div>
+    <div class="toolbar-right">
+      <div class="root-selector" id="root-selector" style="display:none">
+        <label for="root-node-select">Root:</label>
+        <select id="root-node-select">
+          <option value="">-- Select root --</option>
+        </select>
+      </div>
+      <label class="edge-label-toggle" id="edge-label-toggle" style="display:none" title="Show interface names on connections">
+        <input type="checkbox" id="chk-edge-labels" />
+        <span>Edge labels</span>
+      </label>
+      <div class="search-box" id="search-box">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="search-input" placeholder="Search devices..." />
+      </div>
+    </div>
+  </div>
+  <div id="network-graph" class="network-graph">
+    <div class="empty-graph">Select or create a site to get started</div>
+  </div>
+  <div id="text-view" class="text-view" style="display:none">
+    <div class="text-view-actions">
+      <button id="btn-copy-text" class="btn btn-ghost btn-sm" title="Copy to clipboard">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        <span>Copy</span>
+      </button>
+    </div>
+    <pre id="text-tree-output" class="text-tree-output"></pre>
+  </div>
+  <div id="table-view" class="table-view" style="display:none">
+    <div class="table-view-actions">
+      <button id="btn-csv-export" class="btn btn-ghost btn-sm" title="Export as CSV">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>CSV</span>
+      </button>
+    </div>
+    <div class="table-scroll">
+      <table id="device-table" class="device-table">
+        <thead><tr></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+  <div id="matrix-view" class="matrix-view" style="display:none">
+    <div class="matrix-scroll" id="matrix-scroll"></div>
+  </div>
+  <div id="portmap-view" class="portmap-view" style="display:none">
+    <div class="portmap-scroll" id="portmap-scroll"></div>
+  </div>
+  <div id="device-details" class="device-details"></div>
+</main>
+
+<!-- Help Modal -->
+<div id="help-modal" class="modal-overlay" style="display:none">
+  <div class="modal-content help-modal-content">
+    <div class="modal-header">
+      <h2>LLDPviz Help</h2>
+      <button id="btn-close-help" class="btn-icon-round" title="Close">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+
+      <section class="help-section">
+        <h3>What is LLDPviz?</h3>
+        <p>LLDPviz is a network topology visualization tool that builds interactive network diagrams
+          from MikroTik LLDP neighbor data. You paste raw CLI output from your routers/switches, and the app
+          automatically constructs a visual map of your network.</p>
+        <p>Data is stored locally in your browser (localStorage). Optionally, you can <em>Share</em> a site to generate a link backed by the server.</p>
+      </section>
+
+      <section class="help-section">
+        <h3>Getting Started</h3>
+        <ol>
+          <li><strong>Create a Site</strong> &mdash; Enter a name and click <em>Create</em>. A site represents a network/location.</li>
+          <li><strong>Collect LLDP data</strong> &mdash; Log in to a MikroTik device and run:
+            <code class="help-code">/ip/neighbor/print detail where discovered-by~"lldp"</code>
+          </li>
+          <li><strong>Paste data</strong> &mdash; Copy the entire output and paste it into the text field. Source Identity is auto-detected from the prompt (e.g. <code>[admin@Router1] &gt;</code>).</li>
+          <li><strong>Click "Add Neighbors"</strong> &mdash; Devices and connections are added to the topology.</li>
+          <li><strong>Repeat</strong> &mdash; Paste output from more devices to build the full network map.</li>
+        </ol>
+      </section>
+
+      <section class="help-section">
+        <h3>Traverse Mode</h3>
+        <p>Traverse mode is a <strong>guided discovery workflow</strong> that helps you systematically scan the entire network:</p>
+        <ul>
+          <li>Click the <em>Traverse</em> button to start.</li>
+          <li>Paste LLDP output from the current device.</li>
+          <li>New neighbors appear as <em>Pending</em> in the queue.</li>
+          <li>Use the <em>MAC-telnet</em> command (copyable) to jump to the next device.</li>
+          <li>Mark devices as <em>Dead End</em> if they cannot be scanned.</li>
+          <li>The progress bar shows how much of the network has been scanned.</li>
+        </ul>
+        <p>While traversing, you can optionally paste additional data per device:</p>
+        <ul>
+          <li><strong>Interface Status</strong> &mdash; <code>/interface/print without-paging</code></li>
+          <li><strong>IP Addresses</strong> &mdash; <code>/ip/address/print without-paging</code></li>
+          <li><strong>Bridge VLANs</strong> &mdash; <code>/interface/bridge/vlan/print without-paging</code></li>
+        </ul>
+        <p>This extra data is shown in the device detail panel and used by the Ports view.</p>
+      </section>
+
+      <section class="help-section">
+        <h3>View Modes</h3>
+        <div class="help-grid">
+          <div class="help-card">
+            <strong>Network</strong>
+            <p>Force-directed layout. Devices arrange themselves automatically.</p>
+          </div>
+          <div class="help-card">
+            <strong>Tree</strong>
+            <p>Hierarchical top-down from a chosen root. Double-click to change root.</p>
+          </div>
+          <div class="help-card">
+            <strong>Radial</strong>
+            <p>Concentric circles from root. Good overview of network depth.</p>
+          </div>
+          <div class="help-card">
+            <strong>Text</strong>
+            <p>ASCII tree output, copyable for documentation or chat.</p>
+          </div>
+          <div class="help-card">
+            <strong>Table</strong>
+            <p>Sortable device list with all fields. Exportable as CSV.</p>
+          </div>
+          <div class="help-card">
+            <strong>Matrix</strong>
+            <p>N&times;N connection grid showing interfaces at each intersection.</p>
+          </div>
+          <div class="help-card">
+            <strong>Ports</strong>
+            <p>Switch faceplate view. Shows every port with connection status.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="help-section">
+        <h3>Toolbar</h3>
+        <ul>
+          <li><strong>Root selector</strong> &mdash; Choose the root node for Tree, Radial, and Text views.</li>
+          <li><strong>Edge labels</strong> &mdash; Toggle interface names on graph connections (Network/Tree/Radial).</li>
+          <li><strong>Search</strong> &mdash; Filter devices by name, IP, MAC, or board across all views.</li>
+        </ul>
+      </section>
+
+      <section class="help-section">
+        <h3>Node Shapes &amp; Colors</h3>
+        <div class="help-legend-grid">
+          <div class="help-legend-item">
+            <span class="legend-dot" style="background:#e67e22"></span>
+            <strong>Hexagon (orange)</strong> &mdash; Router + Bridge
+          </div>
+          <div class="help-legend-item">
+            <span class="legend-dot" style="background:#e74c3c"></span>
+            <strong>Diamond (red)</strong> &mdash; Router only
+          </div>
+          <div class="help-legend-item">
+            <span class="legend-dot" style="background:#3498db"></span>
+            <strong>Box (blue)</strong> &mdash; Bridge/Switch
+          </div>
+          <div class="help-legend-item">
+            <span class="legend-dot" style="background:#2ecc71"></span>
+            <strong>Triangle (green)</strong> &mdash; WLAN AP
+          </div>
+          <div class="help-legend-item">
+            <span class="legend-dot" style="background:#6c7a89"></span>
+            <strong>Dot (grey)</strong> &mdash; Other/unknown
+          </div>
+        </div>
+      </section>
+
+      <section class="help-section">
+        <h3>Export, Import &amp; Share</h3>
+        <ul>
+          <li><strong>Export</strong> &mdash; Downloads the selected site as a <code>.json</code> file.</li>
+          <li><strong>Import</strong> &mdash; Loads a <code>.json</code> file to create or replace a site.</li>
+          <li><strong>Share</strong> &mdash; Uploads the site to the server and copies a shareable link. Anyone with the link can view the topology.</li>
+          <li><strong>Save</strong> &mdash; Saves a new revision of a shared site. Previous revisions remain accessible via the dropdown.</li>
+        </ul>
+      </section>
+
+      <section class="help-section">
+        <h3>Interaction</h3>
+        <ul>
+          <li><strong>Click</strong> a device to view details (IP, MAC, board, connections, VLANs).</li>
+          <li><strong>Click</strong> a connection (edge) to view interface details.</li>
+          <li><strong>Double-click</strong> a device (in Tree/Radial mode) to make it the root.</li>
+          <li><strong>Scroll</strong> to zoom in/out.</li>
+          <li><strong>Drag</strong> to pan around the graph.</li>
+          <li><strong>Drag a device</strong> to reposition it manually.</li>
+        </ul>
+      </section>
+
+      <section class="help-section">
+        <h3>JSON Format Example</h3>
+        <pre class="help-pre">{
+  "name": "Datacenter Nord",
+  "devices": {
+    "Core-Router": {
+      "identity": "Core-Router",
+      "macAddress": "48:A9:8A:AD:41:DD",
+      "platform": "MikroTik",
+      "board": "CCR2004-16G-2S+",
+      "version": "7.14",
+      "address": "10.0.0.1",
+      "systemCaps": "bridge,router",
+      "systemCapsEnabled": "bridge,router",
+      "scanned": true
+    }
+  },
+  "connections": [
+    {
+      "fromIdentity": "Core-Router",
+      "toIdentity": "SW-Floor1",
+      "fromInterface": "sfp-sfpplus1",
+      "toInterface": "sfp-sfpplus1",
+      "lastSeen": "2026-02-23T12:00:00.000Z"
+    }
+  ]
+}</pre>
+      </section>
+
+      <section class="help-section">
+        <h3>Format Manifest (for LLM/automation)</h3>
+        <p>A <strong>JSON Schema manifest</strong> is included with the project: <code>lldpviz-format.manifest.json</code></p>
+        <p>Use the manifest to let an LLM or script <strong>generate valid LLDPviz files</strong> programmatically &mdash; e.g. from an SNMP crawl, Netbox export, or another LLDP source.</p>
+        <div class="manifest-actions">
+          <button id="btn-download-manifest" class="btn btn-ghost btn-sm">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download manifest
+          </button>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<!-- About Modal -->
+<div id="about-modal" class="modal-overlay" style="display:none">
+  <div class="modal-content about-modal-content">
+    <div class="modal-header">
+      <h2>About LLDPviz</h2>
+      <button id="btn-close-about" class="btn-icon-round" title="Close">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body about-body">
+      <div class="about-logo">LLDP<span class="accent">viz</span></div>
+      <p>A network topology visualizer built for MikroTik LLDP data. I made this tool for my own use &mdash; if it helps you too, great.</p>
+      <p>This project is 100% vibe-coded. Feel free to use, copy, modify, or redistribute it however you like.</p>
+      <p>Issues, bug reports, and pull requests are welcome on GitHub:</p>
+      <a href="https://github.com/stfnndrsn/lldpviz" target="_blank" rel="noopener" class="about-github-link">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        github.com/stfnndrsn/lldpviz
+      </a>
+      <p class="about-license">Released under the <a href="https://unlicense.org" target="_blank" rel="noopener">Unlicense</a> &mdash; public domain.</p>
+    </div>
+  </div>
+</div>
+
+<script src="parser.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

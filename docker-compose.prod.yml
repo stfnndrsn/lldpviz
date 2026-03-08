@@ -1,0 +1,23 @@
+# Production override: pre-built image from GitLab Container Registry, Traefik proxy.
+# Server usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  web:
+    image: ${CI_REGISTRY_IMAGE:-registry.ftb.dk/pumait/lldpviz}:${IMAGE_TAG:-latest}
+    build: !reset null
+    ports: !reset []
+    networks:
+      - default
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.lldpviz.rule=Host(`${APP_HOST}`)
+      - traefik.http.routers.lldpviz.entrypoints=websecure
+      - traefik.http.routers.lldpviz.tls.certresolver=letsencrypt
+      - traefik.http.routers.lldpviz.middlewares=hsts@docker
+      - traefik.http.services.lldpviz.loadbalancer.server.port=5000
+    restart: unless-stopped
+
+networks:
+  proxy:
+    external: true

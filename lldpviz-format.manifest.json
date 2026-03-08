@@ -1,0 +1,218 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/pumait/lldp-grpaviz/lldpviz-format.manifest.json",
+  "title": "LLDPviz Site Export Format",
+  "description": "Schema for LLDPviz network topology export files. LLDPviz visualizes Layer 2 network topology built from MikroTik LLDP (Link Layer Discovery Protocol) neighbor data. Each export file represents a single 'site' — a logical grouping of network devices and the physical connections between them. The data originates from running '/ip/neighbor/print detail where discovered-by~\"lldp\"' on MikroTik RouterOS devices and is parsed into this structured format. The file can be imported back into LLDPviz or consumed by other tools to reconstruct the network graph.",
+  "version": "1.0.0",
+  "type": "object",
+  "required": ["name", "devices"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Human-readable name for this site/network/location. Used as the display label in the UI and as the basis for the export filename.",
+      "examples": ["Datacenter Nord", "Kontor Aarhus", "Backbone Ring"]
+    },
+    "devices": {
+      "type": "object",
+      "description": "Map of all known network devices, keyed by their LLDP identity (hostname). Each key MUST match the 'identity' field of its value. Devices are discovered either by being the source of an LLDP scan (scanned=true) or by appearing as a neighbor in another device's LLDP output (scanned=false/undefined).",
+      "additionalProperties": {
+        "$ref": "#/definitions/Device"
+      }
+    },
+    "connections": {
+      "type": "array",
+      "description": "List of Layer 2 links between devices. Each connection represents a physical cable or direct link discovered via LLDP. Connections are bidirectional but stored once — the pair (fromIdentity, toIdentity) is deduplicated by sorting the two identities alphabetically. When the same link is reported from both sides, interface information is merged.",
+      "items": {
+        "$ref": "#/definitions/Connection"
+      },
+      "default": []
+    },
+    "traverseState": {
+      "$ref": "#/definitions/TraverseState",
+      "description": "Optional. Saved state of an in-progress network traverse (guided discovery session). If present, LLDPviz will resume traverse mode when the site is loaded. Omit this field for completed or non-traversed sites."
+    }
+  },
+  "definitions": {
+    "Device": {
+      "type": "object",
+      "description": "A network device discovered via LLDP. Fields are populated from the MikroTik '/ip/neighbor/print detail' output. Not all fields will be present for every device — unscanned devices (discovered only as neighbors) may have partial information.",
+      "required": ["identity"],
+      "properties": {
+        "identity": {
+          "type": "string",
+          "description": "The device's LLDP system name / MikroTik identity. This is the primary key and MUST match the key used in the parent 'devices' map. Corresponds to the 'identity' field in MikroTik LLDP output or the hostname shown in the RouterOS prompt (e.g., [admin@MyRouter] >).",
+          "examples": ["GC-CCR2004", "SW-Floor1", "AP-Meeting-Room"]
+        },
+        "macAddress": {
+          "type": "string",
+          "description": "The device's MAC address as reported by LLDP. Format: colon-separated hex octets. Used for MAC-telnet commands during traverse mode.",
+          "pattern": "^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$",
+          "examples": ["48:A9:8A:AD:41:DD", "64:D1:54:5A:02:FF"]
+        },
+        "platform": {
+          "type": "string",
+          "description": "The device's platform/vendor as reported by LLDP. Typically 'MikroTik' for RouterOS devices.",
+          "examples": ["MikroTik", ""]
+        },
+        "board": {
+          "type": "string",
+          "description": "The hardware model/board name. Corresponds to 'board' in MikroTik LLDP output.",
+          "examples": ["CCR2004-16G-2S+", "CRS326-24G-2S+", "hAP ac³", "RB5009UG+S+"]
+        },
+        "version": {
+          "type": "string",
+          "description": "The RouterOS firmware version running on the device.",
+          "examples": ["7.14", "7.16.2", "6.49.17"]
+        },
+        "systemDescription": {
+          "type": "string",
+          "description": "Free-form system description from LLDP TLV. May include OS name and version info.",
+          "examples": ["MikroTik", "RouterOS 7.14"]
+        },
+        "systemCaps": {
+          "type": "string",
+          "description": "LLDP System Capabilities — what the device hardware supports. Comma-separated list of capabilities. Used by LLDPviz to determine node shape and color in the topology graph.",
+          "examples": ["bridge,router", "bridge", "bridge,wlan-ap,router", "router"],
+          "_visualMapping": {
+            "bridge,router (or router,bridge)": "Hexagon shape, orange (#e67e22)",
+            "router (without bridge)": "Diamond shape, red (#e74c3c)",
+            "bridge (without router)": "Box shape, blue (#3498db)",
+            "wlan-ap": "Triangle shape, green (#2ecc71)",
+            "other/empty": "Dot shape, grey (#6c7a89)"
+          }
+        },
+        "systemCapsEnabled": {
+          "type": "string",
+          "description": "LLDP System Capabilities Enabled — which capabilities are actually active. Same format as systemCaps. This field takes precedence over systemCaps for determining the node's visual representation.",
+          "examples": ["bridge,router", "bridge"]
+        },
+        "address": {
+          "type": "string",
+          "description": "The device's management IPv4 address as advertised via LLDP.",
+          "format": "ipv4",
+          "examples": ["10.0.0.1", "192.168.88.1"]
+        },
+        "address6": {
+          "type": "string",
+          "description": "The device's management IPv6 address as advertised via LLDP.",
+          "format": "ipv6",
+          "examples": ["fe80::4aa9:8aff:fead:41dd", "2001:db8::1"]
+        },
+        "scanned": {
+          "type": "boolean",
+          "description": "Whether this device has been directly scanned (i.e., LLDP output was pasted from this device's CLI). Devices with scanned=true had their LLDP neighbor table submitted. Devices with scanned=false (or omitted) were only discovered as neighbors of other devices and may have incomplete information.",
+          "default": false
+        },
+        "lastSeen": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp of when this device was last seen or updated. Set to the current time whenever the device record is created or modified via an LLDP data submission.",
+          "examples": ["2026-02-23T14:30:00.000Z"]
+        }
+      }
+    },
+    "Connection": {
+      "type": "object",
+      "description": "A Layer 2 link between two devices. Represents a physical cable or direct connection discovered via LLDP. The connection is stored in one direction only — (fromIdentity, toIdentity) are sorted alphabetically for deduplication. Interface names refer to the physical port names on each side of the link.",
+      "required": ["fromIdentity", "toIdentity"],
+      "properties": {
+        "fromIdentity": {
+          "type": "string",
+          "description": "Identity of the first device in this connection. MUST reference a key in the 'devices' map.",
+          "examples": ["Core-Router"]
+        },
+        "toIdentity": {
+          "type": "string",
+          "description": "Identity of the second device in this connection. MUST reference a key in the 'devices' map.",
+          "examples": ["SW-Floor1"]
+        },
+        "fromInterface": {
+          "type": "string",
+          "description": "The physical interface name on the 'from' device. Extracted from MikroTik's 'interface' field with bridge membership stripped (e.g., 'sfp-sfpplus2,bridge' becomes 'sfp-sfpplus2').",
+          "examples": ["sfp-sfpplus1", "ether1", "sfp-sfpplus2", "combo1"]
+        },
+        "toInterface": {
+          "type": "string",
+          "description": "The physical interface name on the 'to' device. Extracted from MikroTik's 'interface-name' LLDP field (the remote port description).",
+          "examples": ["sfp-sfpplus1", "ether2", "combo1"]
+        },
+        "lastSeen": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp of when this connection was last confirmed via LLDP data.",
+          "examples": ["2026-02-23T14:30:00.000Z"]
+        }
+      }
+    },
+    "TraverseState": {
+      "type": "object",
+      "description": "Saved state of a network traverse session. Traverse mode is a guided workflow where the user systematically visits each device in the network to build a complete topology map. This state allows resuming an interrupted traverse.",
+      "properties": {
+        "visited": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of device identities that have been scanned (LLDP output submitted). These devices are shown with a green border in the graph.",
+          "examples": [["Core-Router", "SW-Floor1", "SW-Floor2"]]
+        },
+        "pending": {
+          "type": "array",
+          "description": "List of [identity, info] pairs for devices discovered but not yet scanned. Each entry is a two-element array: [string, PendingDevice]. These devices are shown with an orange border in the graph.",
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": [
+              {
+                "type": "string",
+                "description": "Device identity"
+              },
+              {
+                "$ref": "#/definitions/PendingDevice"
+              }
+            ]
+          },
+          "examples": [[["AP-Lobby", {"identity": "AP-Lobby", "macAddress": "AA:BB:CC:DD:EE:FF", "board": "hAP ac³"}]]]
+        },
+        "deadEnds": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of device identities marked as dead ends (unreachable or non-scannable). These devices are shown with a red border and reduced opacity in the graph.",
+          "examples": [["ISP-PE-Router", "Third-Party-Switch"]]
+        }
+      }
+    },
+    "PendingDevice": {
+      "type": "object",
+      "description": "Minimal info about a pending (not yet scanned) device in traverse mode.",
+      "properties": {
+        "identity": {
+          "type": "string",
+          "description": "Device identity/hostname."
+        },
+        "macAddress": {
+          "type": "string",
+          "description": "MAC address, used for generating MAC-telnet commands."
+        },
+        "board": {
+          "type": "string",
+          "description": "Board/model name if known."
+        }
+      }
+    }
+  },
+  "_meta": {
+    "generator": "LLDPviz — LLDP Network Topology Visualizer",
+    "sourceDataFormat": "MikroTik RouterOS CLI output from: /ip/neighbor/print detail where discovered-by~\"lldp\"",
+    "storageBackend": "Browser localStorage",
+    "graphLibrary": "vis.js (vis-network)",
+    "notes": [
+      "The 'devices' map key MUST equal the device's 'identity' field.",
+      "Connections are deduplicated: for devices A and B, only one connection exists regardless of which side reported it. The pair is stored sorted alphabetically.",
+      "Empty string ('') is used for unknown/missing field values, not null.",
+      "The 'scanned' field distinguishes directly-scanned devices from those only discovered as neighbors.",
+      "systemCapsEnabled takes precedence over systemCaps for visual node styling.",
+      "Interface names may contain bridge membership info in raw LLDP data (e.g., 'ether1,bridge') — the export contains the cleaned physical interface name only."
+    ]
+  }
+}
