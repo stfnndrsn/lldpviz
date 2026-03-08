@@ -54,7 +54,7 @@ deploy-production:
   extends: .deploy_base
   script:
     - ssh deploy@$DEPLOY_HOST "mkdir -p /opt/apps/lldpviz"
-    - scp docker-compose.yml docker-compose.prod.yml .env deploy@$DEPLOY_HOST:/opt/apps/lldpviz/
+    - scp docker-compose.yml docker-compose.prod.yml deploy@$DEPLOY_HOST:/opt/apps/lldpviz/
     - ssh deploy@$DEPLOY_HOST "docker login -u gitlab-ci-token -p '${CI_JOB_TOKEN}' ${CI_REGISTRY}"
     - ssh deploy@$DEPLOY_HOST "cd /opt/apps/lldpviz && docker compose -f docker-compose.yml -f docker-compose.prod.yml pull web"
     - ssh deploy@$DEPLOY_HOST "cd /opt/apps/lldpviz && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans"
