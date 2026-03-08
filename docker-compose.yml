@@ -8,6 +8,6 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      - ../data:/data
+      - ./data:/data
     environment:
       LLDPVIZ_DB: /data/lldpviz.db
